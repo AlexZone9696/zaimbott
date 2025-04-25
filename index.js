@@ -111,9 +111,9 @@ bot.on("callback_query", async (query) => {
     await bot.sendMessage(chatId, "Спасибо! Обрабатываю ваши данные и подбираю займ...");
     await new Promise(resolve => setTimeout(resolve, 10000));
 
-    const randomOffers = OFFERS.sort(() => 0.5 - Math.random()).slice(0, 2);
+    const randomOffers = OFFERS.sort(() => 0.5 - Math.random()).slice(0, 4);
 
-    await bot.sendMessage(chatId, "Вот предложения для вас:", {
+    await bot.sendMessage(chatId, "Спасибо за ожидание! Вот предложения для вас:", {
       reply_markup: {
         inline_keyboard: randomOffers.map((offer) => [
           { text: offer.title, url: offer.url }
