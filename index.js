@@ -10,27 +10,31 @@ const OFFERS = [
 
 const userStates = {};
 
-bot.on("message", (msg) => {
+bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
+  const name = msg.from.first_name;
 
-  if (!userStates[chatId] || text.toLowerCase() === "/start") {
-    userStates[chatId] = { step: 1 };
-    bot.sendMessage(chatId, "Здравствуйте!\n\nСколько денег вам нужно?", {
+  if (!userStates[chatId] || text === "/start") {
+    userStates[chatId] = { step: "start" };
+
+    await bot.sendMessage(chatId, `Здравствуйте, ${name}!\n\nСрочно нужны деньги?\nЯ помогу вам подобрать займ за 1 минуту. Просто ответьте на несколько вопросов, и я подберу для вас самые выгодные предложения.`);
+
+    return bot.sendMessage(chatId, "Нажмите кнопку ниже, чтобы начать:", {
       reply_markup: {
-        force_reply: true,
-        remove_keyboard: true
+        inline_keyboard: [
+          [{ text: "Подобрать займ", callback_data: "start_loan" }]
+        ]
       }
     });
-    return;
   }
 
   const user = userStates[chatId];
 
-  if (user.step === 1) {
+  if (user.step === "amount") {
     user.amount = text;
-    user.step = 2;
-    bot.sendMessage(chatId, "Есть ли у вас просрочки?", {
+    user.step = "overdue";
+    return bot.sendMessage(chatId, "Есть ли у вас просрочки?", {
       reply_markup: {
         inline_keyboard: [
           [{ text: "Да", callback_data: "overdue_yes" }, { text: "Нет", callback_data: "overdue_no" }]
@@ -40,22 +44,20 @@ bot.on("message", (msg) => {
   }
 });
 
-bot.on("callback_query", (query) => {
+bot.on("callback_query", async (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
   const user = userStates[chatId] || {};
 
-  if (data === "overdue_yes" || data === "overdue_no") {
+  if (data === "start_loan") {
+    userStates[chatId] = { step: "amount" };
+    return bot.sendMessage(chatId, "Какая сумма вас интересует?");
+  }
+
+  if (data.startsWith("overdue_")) {
     user.overdue = data === "overdue_yes" ? "Да" : "Нет";
-    user.step = 3;
-    userStates[chatId] = user;
-
-    bot.editMessageText("Есть ли у вас просрочки?\nОтвет: " + user.overdue, {
-      chat_id: chatId,
-      message_id: query.message.message_id
-    });
-
-    bot.sendMessage(chatId, "Вы сейчас трудоустроены?", {
+    user.step = "job";
+    return bot.sendMessage(chatId, "Вы сейчас трудоустроены?", {
       reply_markup: {
         inline_keyboard: [
           [{ text: "Трудоустроен", callback_data: "job_working" }],
@@ -68,23 +70,9 @@ bot.on("callback_query", (query) => {
   }
 
   if (data.startsWith("job_")) {
-    user.jobStatus = data.replace("job_", "");
-    user.step = 4;
-    userStates[chatId] = user;
-
-    const jobTitles = {
-      working: "Трудоустроен",
-      unemployed: "Не работаю",
-      student: "Студент",
-      pensioner: "Пенсионер"
-    };
-
-    bot.editMessageText("Вы сейчас трудоустроены?\nОтвет: " + jobTitles[user.jobStatus], {
-      chat_id: chatId,
-      message_id: query.message.message_id
-    });
-
-    bot.sendMessage(chatId, "Укажите ваш возраст:", {
+    user.job = data.replace("job_", "");
+    user.step = "age";
+    return bot.sendMessage(chatId, "Укажите ваш возраст:", {
       reply_markup: {
         inline_keyboard: [
           [{ text: "18 - 24", callback_data: "age_18_24" }],
@@ -97,17 +85,35 @@ bot.on("callback_query", (query) => {
 
   if (data.startsWith("age_")) {
     user.age = data.replace("age_", "").replace("_", " - ");
-    user.step = 5;
-    userStates[chatId] = user;
+    user.step = "reason";
+    return bot.sendMessage(chatId, "Для каких целей вам необходимы деньги?", {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "Погашение долга", callback_data: "reason_debt" }],
+          [{ text: "Покупка товаров", callback_data: "reason_goods" }],
+          [{ text: "Непредвиденные расходы", callback_data: "reason_emergency" }],
+          [{ text: "Другое", callback_data: "reason_other" }]
+        ]
+      }
+    });
+  }
+
+  if (data.startsWith("reason_")) {
+    const reasons = {
+      debt: "Погашение долга",
+      goods: "Покупка товаров",
+      emergency: "Непредвиденные расходы",
+      other: "Другое"
+    };
+    user.reason = reasons[data.replace("reason_", "")];
+    user.step = "processing";
+
+    await bot.sendMessage(chatId, "Спасибо! Обрабатываю ваши данные и подбираю займ...");
+    await new Promise(resolve => setTimeout(resolve, 10000));
 
     const randomOffers = OFFERS.sort(() => 0.5 - Math.random()).slice(0, 2);
 
-    bot.editMessageText("Возраст: " + user.age, {
-      chat_id: chatId,
-      message_id: query.message.message_id
-    });
-
-    bot.sendMessage(chatId, "Вот предложения для вас:", {
+    await bot.sendMessage(chatId, "Вот предложения для вас:", {
       reply_markup: {
         inline_keyboard: randomOffers.map((offer) => [
           { text: offer.title, url: offer.url }
@@ -115,6 +121,6 @@ bot.on("callback_query", (query) => {
       }
     });
 
-    delete userStates[chatId]; // Сбросить состояние после окончания диалога
+    delete userStates[chatId];
   }
 });
