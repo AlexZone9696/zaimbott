@@ -13,14 +13,18 @@ const OFFERS = [
 const userStates = {};
 const usersFile = path.join(__dirname, "users.txt");
 
-function saveUserId(chatId) {
-  fs.readFile(usersFile, "utf8", (err, data) => {
+// Функция для сохранения ID пользователя
+async function saveUserId(chatId) {
+  try {
+    const data = await fs.promises.readFile(usersFile, "utf8");
     const users = data ? data.split("\n") : [];
     if (!users.includes(chatId.toString())) {
       users.push(chatId);
-      fs.writeFile(usersFile, users.join("\n"), () => {});
+      await fs.promises.writeFile(usersFile, users.join("\n"));
     }
-  });
+  } catch (err) {
+    console.error("Ошибка при сохранении ID пользователя:", err);
+  }
 }
 
 bot.on("message", async (msg) => {
@@ -28,6 +32,7 @@ bot.on("message", async (msg) => {
   const text = msg.text;
   const name = msg.from.first_name;
 
+  console.log(`Получено сообщение от ${chatId}: ${text}`);
   saveUserId(chatId);
 
   if (!userStates[chatId] || text === "/start") {
