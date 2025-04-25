@@ -37,7 +37,10 @@ bot.on("message", async (msg) => {
     return bot.sendMessage(chatId, "Есть ли у вас просрочки?", {
       reply_markup: {
         inline_keyboard: [
-          [{ text: "Да", callback_data: "overdue_yes" }, { text: "Нет", callback_data: "overdue_no" }]
+          [
+            { text: "Да", callback_data: "overdue_yes" },
+            { text: "Нет", callback_data: "overdue_no" }
+          ]
         ]
       }
     });
@@ -108,15 +111,24 @@ bot.on("callback_query", async (query) => {
     user.reason = reasons[data.replace("reason_", "")];
     user.step = "processing";
 
+    await bot.sendMessage(chatId, "Спасибо! Обрабатываю ваши данные и подбираю займ...");
+    await new Promise(resolve => setTimeout(resolve, 10000)); // Подождать 10 секунд
+
+    const randomOffers = OFFERS.sort(() => 0.5 - Math.random()).slice(0, 2);
+
     await bot.sendMessage(chatId,
-  `Подобрал для вас два предложения с наивысшим шансом на одобрение!\n\n` +
-  `Доступно: ${user.amount}\n` +
-  `Для клиентов без просрочек\n\n` +
-  `⌛Предложение действительно 30 минут`, {
-    reply_markup: {
-      inline_keyboard: randomOffers.map((offer) => [
-        { text: offer.title, url: offer.url }
-      ])
-    }
+      `Подобрал для вас два предложения с наивысшим шансом на одобрение!\n\n` +
+      `Доступно: ${user.amount}\n` +
+      `Для клиентов без просрочек\n\n` +
+      `⌛Предложение действительно 30 минут`, {
+        reply_markup: {
+          inline_keyboard: randomOffers.map((offer) => [
+            { text: offer.title, url: offer.url }
+          ])
+        }
+      }
+    );
+
+    delete userStates[chatId];
   }
-);
+});
