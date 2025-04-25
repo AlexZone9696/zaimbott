@@ -13,23 +13,23 @@ const OFFERS = [
 
 const userStates = {};
 
-bot.onText(/\/start/, (msg) => {
-  const chatId = msg.chat.id;
-  userStates[chatId] = {};
-  bot.sendMessage(chatId, "Здравствуйте! Сколько денег вам нужно?", {
-    reply_markup: { force_reply: true }
-  });
-});
-
 bot.on("message", (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
 
-  const state = userStates[chatId];
-  if (!state) return;
+  if (!userStates[chatId] || text.toLowerCase() === "/start") {
+    userStates[chatId] = { step: 1 };
+    bot.sendMessage(chatId, "Здравствуйте! Сколько денег вам нужно?", {
+      reply_markup: { force_reply: true }
+    });
+    return;
+  }
 
-  if (!state.amount) {
-    state.amount = text;
+  const user = userStates[chatId];
+
+  if (user.step === 1) {
+    user.amount = text;
+    user.step = 2;
     bot.sendMessage(chatId, "Есть ли у вас просрочки?", {
       reply_markup: {
         keyboard: [["Да"], ["Нет"]],
@@ -37,8 +37,9 @@ bot.on("message", (msg) => {
         resize_keyboard: true
       }
     });
-  } else if (!state.overdue) {
-    state.overdue = text;
+  } else if (user.step === 2) {
+    user.overdue = text;
+    user.step = 3;
     bot.sendMessage(chatId, "Вы сейчас трудоустроены?", {
       reply_markup: {
         keyboard: [["Трудоустроен"], ["Не работаю"], ["Студент"], ["Пенсионер"]],
@@ -46,8 +47,9 @@ bot.on("message", (msg) => {
         resize_keyboard: true
       }
     });
-  } else if (!state.jobStatus) {
-    state.jobStatus = text;
+  } else if (user.step === 3) {
+    user.jobStatus = text;
+    user.step = 4;
     bot.sendMessage(chatId, "Укажите ваш возраст:", {
       reply_markup: {
         keyboard: [["18 - 24"], ["25 - 45"], ["45+"]],
@@ -55,8 +57,9 @@ bot.on("message", (msg) => {
         resize_keyboard: true
       }
     });
-  } else if (!state.age) {
-    state.age = text;
+  } else if (user.step === 4) {
+    user.age = text;
+    user.step = 5;
 
     const randomOffers = OFFERS.sort(() => 0.5 - Math.random()).slice(0, 2);
     bot.sendMessage(chatId, `Вот предложения для вас:\n\n${randomOffers.join("\n\n")}`);
@@ -65,7 +68,7 @@ bot.on("message", (msg) => {
 });
 
 app.get("/", (req, res) => {
-  res.send("Бот работает!");
+  res.send("Loan bot is running.");
 });
 
 module.exports = app;
