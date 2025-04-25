@@ -1,4 +1,6 @@
 const TelegramBot = require("node-telegram-bot-api");
+const fs = require("fs");
+const path = require("path");
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
 const OFFERS = [
@@ -9,11 +11,24 @@ const OFFERS = [
 ];
 
 const userStates = {};
+const usersFile = path.join(__dirname, "users.txt");
+
+function saveUserId(chatId) {
+  fs.readFile(usersFile, "utf8", (err, data) => {
+    const users = data ? data.split("\n") : [];
+    if (!users.includes(chatId.toString())) {
+      users.push(chatId);
+      fs.writeFile(usersFile, users.join("\n"), () => {});
+    }
+  });
+}
 
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
   const name = msg.from.first_name;
+
+  saveUserId(chatId);
 
   if (!userStates[chatId] || text === "/start") {
     if (userStates[chatId]?.lastBotMessageId) {
@@ -32,7 +47,6 @@ bot.on("message", async (msg) => {
       }
     });
     userStates[chatId].lastBotMessageId = button.message_id;
-
     return;
   }
 
@@ -76,6 +90,8 @@ bot.on("callback_query", async (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
   const user = userStates[chatId] || {};
+
+  saveUserId(chatId);
 
   if (user.lastBotMessageId) {
     bot.deleteMessage(chatId, user.lastBotMessageId).catch(() => {});
@@ -154,7 +170,7 @@ bot.on("callback_query", async (query) => {
     const waitMsg = await bot.sendMessage(chatId, "Спасибо! Обрабатываю ваши данные и подбираю займ...");
     user.lastBotMessageId = waitMsg.message_id;
 
-    await new Promise(resolve => setTimeout(resolve, 10000)); // Ждать 10 секунд
+    await new Promise(resolve => setTimeout(resolve, 10000));
 
     const randomOffers = OFFERS.sort(() => 0.5 - Math.random()).slice(0, 2);
 
@@ -175,3 +191,18 @@ bot.on("callback_query", async (query) => {
     delete userStates[chatId];
   }
 });
+
+// Рассылка рекламы каждые 10 минут
+setInterval(() => {
+  fs.readFile(usersFile, "utf8", async (err, data) => {
+    if (err || !data) return;
+    const users = data.split("\n").filter(Boolean);
+    for (const chatId of users) {
+      try {
+        await bot.sendMessage(chatId, "🔥 Новый займ с одобрением 95%! Получите деньги за 5 минут!\n\nОформить: https://example.com/promo");
+      } catch (e) {
+        console.log(`Не удалось отправить ${chatId}:`, e.message);
+      }
+    }
+  });
+}, 10 * 60 * 1000);
