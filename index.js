@@ -16,20 +16,28 @@ bot.on("message", async (msg) => {
   const name = msg.from.first_name;
 
   if (!userStates[chatId] || text === "/start") {
+    if (userStates[chatId]?.lastBotMessageId) {
+      bot.deleteMessage(chatId, userStates[chatId].lastBotMessageId).catch(() => {});
+    }
     userStates[chatId] = { step: "start" };
 
-    await bot.sendMessage(chatId, `Здравствуйте, ${name}!\n\nСрочно нужны деньги?\nЯ помогу вам подобрать займ за 1 минуту. Просто ответьте на несколько вопросов, и я подберу для вас самые выгодные предложения.`);
+    const hello = await bot.sendMessage(chatId, `Здравствуйте, ${name}!\n\nСрочно нужны деньги?\nЯ помогу вам подобрать займ за 1 минуту. Просто ответьте на несколько вопросов, и я подберу для вас самые выгодные предложения.`);
+    userStates[chatId].lastBotMessageId = hello.message_id;
 
-    return bot.sendMessage(chatId, "Нажмите кнопку ниже, чтобы начать:", {
+    const button = await bot.sendMessage(chatId, "Нажмите кнопку ниже, чтобы начать:", {
       reply_markup: {
         inline_keyboard: [
           [{ text: "Подобрать займ", callback_data: "start_loan" }]
         ]
       }
     });
+    userStates[chatId].lastBotMessageId = button.message_id;
+
+    return;
   }
 
   const user = userStates[chatId];
+  user.lastUserMessageId = msg.message_id;
 
   if (user.step === "amount") {
     const amount = parseInt(text.replace(/\D/g, ""));
@@ -40,12 +48,17 @@ bot.on("message", async (msg) => {
       amount > 500000 ||
       amount % 10000 !== 0
     ) {
-      return bot.sendMessage(chatId, "Введите сумму от 10 000 до 500 000 тенге, шагом 10 000.");
+      const warn = await bot.sendMessage(chatId, "Введите сумму от 10 000 до 500 000 тенге, шагом 10 000.");
+      if (user.lastBotMessageId) bot.deleteMessage(chatId, user.lastBotMessageId).catch(() => {});
+      user.lastBotMessageId = warn.message_id;
+      return;
     }
 
     user.amount = amount;
     user.step = "overdue";
-    return bot.sendMessage(chatId, "Есть ли у вас просрочки?", {
+    if (user.lastUserMessageId) bot.deleteMessage(chatId, user.lastUserMessageId).catch(() => {});
+    if (user.lastBotMessageId) bot.deleteMessage(chatId, user.lastBotMessageId).catch(() => {});
+    const msgSent = await bot.sendMessage(chatId, "Есть ли у вас просрочки?", {
       reply_markup: {
         inline_keyboard: [
           [
@@ -55,6 +68,7 @@ bot.on("message", async (msg) => {
         ]
       }
     });
+    user.lastBotMessageId = msgSent.message_id;
   }
 });
 
@@ -63,15 +77,22 @@ bot.on("callback_query", async (query) => {
   const data = query.data;
   const user = userStates[chatId] || {};
 
+  if (user.lastBotMessageId) {
+    bot.deleteMessage(chatId, user.lastBotMessageId).catch(() => {});
+  }
+
   if (data === "start_loan") {
     userStates[chatId] = { step: "amount" };
-    return bot.sendMessage(chatId, "Какая сумма вас интересует?");
+    const ask = await bot.sendMessage(chatId, "Какая сумма вас интересует?");
+    userStates[chatId].lastBotMessageId = ask.message_id;
+    return;
   }
 
   if (data.startsWith("overdue_")) {
     user.overdue = data === "overdue_yes" ? "Да" : "Нет";
     user.step = "job";
-    return bot.sendMessage(chatId, "Вы сейчас трудоустроены?", {
+
+    const msgSent = await bot.sendMessage(chatId, "Вы сейчас трудоустроены?", {
       reply_markup: {
         inline_keyboard: [
           [{ text: "Трудоустроен", callback_data: "job_working" }],
@@ -81,12 +102,15 @@ bot.on("callback_query", async (query) => {
         ]
       }
     });
+    user.lastBotMessageId = msgSent.message_id;
+    return;
   }
 
   if (data.startsWith("job_")) {
     user.job = data.replace("job_", "");
     user.step = "age";
-    return bot.sendMessage(chatId, "Укажите ваш возраст:", {
+
+    const msgSent = await bot.sendMessage(chatId, "Укажите ваш возраст:", {
       reply_markup: {
         inline_keyboard: [
           [{ text: "18 - 24", callback_data: "age_18_24" }],
@@ -95,12 +119,15 @@ bot.on("callback_query", async (query) => {
         ]
       }
     });
+    user.lastBotMessageId = msgSent.message_id;
+    return;
   }
 
   if (data.startsWith("age_")) {
     user.age = data.replace("age_", "").replace("_", " - ");
     user.step = "reason";
-    return bot.sendMessage(chatId, "Для каких целей вам необходимы деньги?", {
+
+    const msgSent = await bot.sendMessage(chatId, "Для каких целей вам необходимы деньги?", {
       reply_markup: {
         inline_keyboard: [
           [{ text: "Погашение долга", callback_data: "reason_debt" }],
@@ -110,6 +137,8 @@ bot.on("callback_query", async (query) => {
         ]
       }
     });
+    user.lastBotMessageId = msgSent.message_id;
+    return;
   }
 
   if (data.startsWith("reason_")) {
@@ -122,12 +151,14 @@ bot.on("callback_query", async (query) => {
     user.reason = reasons[data.replace("reason_", "")];
     user.step = "processing";
 
-    await bot.sendMessage(chatId, "Спасибо! Обрабатываю ваши данные и подбираю займ...");
-    await new Promise(resolve => setTimeout(resolve, 10000)); // Подождать 10 секунд
+    const waitMsg = await bot.sendMessage(chatId, "Спасибо! Обрабатываю ваши данные и подбираю займ...");
+    user.lastBotMessageId = waitMsg.message_id;
 
-    const randomOffers = OFFERS.sort(() => 0.5 - Math.random()).slice(0, 3);
+    await new Promise(resolve => setTimeout(resolve, 10000)); // Ждать 10 секунд
 
-    await bot.sendMessage(chatId,
+    const randomOffers = OFFERS.sort(() => 0.5 - Math.random()).slice(0, 2);
+
+    const result = await bot.sendMessage(chatId,
       `Подобрал для вас два предложения с наивысшим шансом на одобрение!\n\n` +
       `Доступно: ${user.amount}₸\n` +
       `Для клиентов без просрочек\n\n` +
@@ -140,6 +171,7 @@ bot.on("callback_query", async (query) => {
       }
     );
 
+    user.lastBotMessageId = result.message_id;
     delete userStates[chatId];
   }
 });
