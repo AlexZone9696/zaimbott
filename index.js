@@ -108,19 +108,15 @@ bot.on("callback_query", async (query) => {
     user.reason = reasons[data.replace("reason_", "")];
     user.step = "processing";
 
-    await bot.sendMessage(chatId, "Спасибо! Обрабатываю ваши данные и подбираю займ...");
-    await new Promise(resolve => setTimeout(resolve, 10000));
-
-    const randomOffers = OFFERS.sort(() => 0.5 - Math.random()).slice(0, 4);
-
-    await bot.sendMessage(chatId, "Спасибо за ожидание! Вот предложения для вас:", {
-      reply_markup: {
-        inline_keyboard: randomOffers.map((offer) => [
-          { text: offer.title, url: offer.url }
-        ])
-      }
-    });
-
-    delete userStates[chatId];
+    await bot.sendMessage(chatId,
+  `Подобрал для вас два предложения с наивысшим шансом на одобрение!\n\n` +
+  `Доступно: ${user.amount}\n` +
+  `Для клиентов без просрочек\n\n` +
+  `⌛Предложение действительно 30 минут`, {
+    reply_markup: {
+      inline_keyboard: randomOffers.map((offer) => [
+        { text: offer.title, url: offer.url }
+      ])
+    }
   }
-});
+);
