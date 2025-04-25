@@ -118,7 +118,7 @@ bot.on("callback_query", async (query) => {
 
     await bot.sendMessage(chatId,
       `Подобрал для вас два предложения с наивысшим шансом на одобрение!\n\n` +
-      `Доступно: ${user.amount}\n`₸  +
+      `Доступно: ${user.amount}\n` +
       `Для клиентов без просрочек\n\n` +
       `⌛Предложение действительно 30 минут`, {
         reply_markup: {
