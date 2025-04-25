@@ -32,7 +32,18 @@ bot.on("message", async (msg) => {
   const user = userStates[chatId];
 
   if (user.step === "amount") {
-    user.amount = text;
+    const amount = parseInt(text.replace(/\D/g, ""));
+
+    if (
+      isNaN(amount) ||
+      amount < 10000 ||
+      amount > 500000 ||
+      amount % 10000 !== 0
+    ) {
+      return bot.sendMessage(chatId, "Введите сумму от 10 000 до 500 000 тенге, шагом 10 000.");
+    }
+
+    user.amount = amount;
     user.step = "overdue";
     return bot.sendMessage(chatId, "Есть ли у вас просрочки?", {
       reply_markup: {
@@ -114,7 +125,7 @@ bot.on("callback_query", async (query) => {
     await bot.sendMessage(chatId, "Спасибо! Обрабатываю ваши данные и подбираю займ...");
     await new Promise(resolve => setTimeout(resolve, 10000)); // Подождать 10 секунд
 
-    const randomOffers = OFFERS.sort(() => 0.5 - Math.random()).slice(0, 2);
+    const randomOffers = OFFERS.sort(() => 0.5 - Math.random()).slice(0, 3);
 
     await bot.sendMessage(chatId,
       `Подобрал для вас два предложения с наивысшим шансом на одобрение!\n\n` +
