@@ -34,7 +34,7 @@ bot.on("message", async (msg) => {
     const button = await bot.sendMessage(chatId, "Нажмите кнопку ниже, чтобы начать:", {
       reply_markup: {
         inline_keyboard: [
-          [{ text: "Подобрать займ", callback_data: "start_loan" }]
+          [{ text: "Подобрать микрокредит", callback_data: "start_loan" }]
         ]
       }
     });
