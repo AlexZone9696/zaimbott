@@ -3,14 +3,6 @@ const fs = require("fs");
 const path = require("path");
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
-const OFFERS = [
-  { title: "Займ до 100 000 ₸", url: "https://example.com/offer1" },
-  { title: "Моментальный займ 150 000 ₸", url: "https://example.com/offer2" },
-  { title: "До 200 000 ₸ без проверок", url: "https://example.com/offer3" },
-  { title: "До 250 000 ₸ за 5 минут", url: "https://example.com/offer4" }
-];
-
-const userStates = {};
 const usersFile = path.join(__dirname, "users.txt");
 
 function saveUserId(chatId) {
@@ -197,12 +189,36 @@ setInterval(() => {
   fs.readFile(usersFile, "utf8", async (err, data) => {
     if (err || !data) return;
     const users = data.split("\n").filter(Boolean);
-    for (const chatId of users) {
-      try {
-        await bot.sendMessage(chatId, "🔥 Новый займ с одобрением 95%! Получите деньги за 5 минут!\n\nОформить: https://example.com/promo");
-      } catch (e) {
-        console.log(`Не удалось отправить ${chatId}:`, e.message);
+    
+    // Чтение предложений из файла offers.txt
+    fs.readFile(path.join(__dirname, "offers.txt"), "utf8", async (err, offersData) => {
+      if (err || !offersData) return;
+      const offers = offersData.split("\n").map(line => line.trim()).filter(Boolean);
+
+      // Выбор случайного предложения
+      const randomOfferText = offers[Math.floor(Math.random() * offers.length)];
+
+      for (const chatId of users) {
+        try {
+          // Получаем имя пользователя для персонализации сообщения
+          const user = await bot.getChat(chatId);
+          const userName = user.first_name;
+
+          // Персонализируем сообщение, подставляя имя пользователя
+          const personalizedMessage = randomOfferText.replace(/{first_name}/g, userName);
+
+          // Отправляем персонализированное сообщение с кнопкой
+          await bot.sendMessage(chatId, personalizedMessage, {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: "Оформить займ", url: "https://example.com/offer1" }]
+              ]
+            }
+          });
+        } catch (e) {
+          console.log(`Не удалось отправить ${chatId}:`, e.message);
+        }
       }
-    }
+    });
   });
-}, 10 * 60 * 1000);
+}, 10 * 60 * 1000); // каждые 10 минут
